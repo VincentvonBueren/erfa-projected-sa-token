@@ -12,7 +12,7 @@ spec:
       command: ["sleep", "3600"]
       volumeMounts:
         - name: token
-          mountPath: /var/run/secrets/vaultprojected
+          mountPath: /var/run/secrets/projected
           readOnly: true
   volumes:
     - name: token

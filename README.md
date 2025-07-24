@@ -82,46 +82,22 @@ For each demo Pod, you can **decode the token payload** and then **log in to Vau
 
 ### 1. JWT Auth Pod
 
-```bash
-# 1) Open a shell in the pod
-kubectl exec -n demo -it jwt-test-pod -- sh
+#### 1. Read the ServiceAccount token
 
-# 2) Read the ServiceAccount token
-export VAULT_ADDR=http://vault.vault.svc:8200
+```sh
 TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-
-# 3) Decode & pretty-print the JWT payload
-echo "---- Decoded Payload ----"
-echo "$TOKEN" | jq -R '
-  split(".")[1]           # take the payload section
-  | gsub("-"; "+")        # url-safe → base64 chars
-  | gsub("_"; "/")
-  | @base64d              # decode
-  | fromjson              # parse as JSON
-'
-
-# 4) Login to Vault via the JWT auth method
-vault login -method=jwt \
-  role=jwt-auth-role \
-  jwt="$TOKEN"
 ```
 
----
+#### 2. Print the Token for tokens.md file
 
-### 2. Kubernetes Auth Pod
+```sh
+echo "$TOKEN"
+```
 
-```bash
-# 1) Open a shell in the pod
-kubectl exec -n demo -it k8s-auth-test-pod -- sh
+#### 3. Decode & pretty-print the JWT payload
 
-# 2) Read the ServiceAccount token
-export VAULT_ADDR=http://vault.vault.svc:8200
-TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-# 3) Decode & pretty-print the JWT payload
+```sh
 echo "---- Decoded Payload ----"
-TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-
-echo "---- Decoded Payload (with dates) ----"
 echo "$TOKEN" | jq -R '
   split(".")[1]
   | gsub("-"; "+")
@@ -134,50 +110,114 @@ echo "$TOKEN" | jq -R '
 '
 ```
 
-# 4) Login to Vault via the Kubernetes auth method
+#### 4. Login to Vault via the JWT auth method and read secret
 
-```bash
-vault write auth/kubernetes/login \
-  role=k8s-auth-role \
-  jwt="$TOKEN"
+```sh
+# Set Vault address correctly
+export VAULT_ADDR=http://vault.vault.svc:8200
+
+# Login with JWT
+vault write auth/jwt/login role=jwt-auth-role jwt="$TOKEN"
+
+# Save Vault token
+VAULT_TOKEN=$(vault write -field=token auth/jwt/login role=jwt-auth-role jwt="$TOKEN")
+
+# Use the token to read the secret
+VAULT_TOKEN=$VAULT_TOKEN vault kv get secret/jwt
+```
+
+---
+
+### 2. Kubernetes Auth Pod
+
+#### 1. Read the ServiceAccount token
+
+```sh
+TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+```
+
+#### 2. Print the Token for tokens.md file
+
+```sh
+echo "$TOKEN"
+```
+
+#### 3. Decode & pretty-print the JWT payload
+
+```sh
+echo "---- Decoded Payload ----"
+echo "$TOKEN" | jq -R '
+  split(".")[1]
+  | gsub("-"; "+")
+  | gsub("_"; "/")
+  | @base64d
+  | fromjson
+  | .issued_at  = (.iat | tonumber | todate)
+  | .expires_at = (.exp | tonumber | todate)
+  | del(.iat, .exp)
+'
+```
+
+#### 4. Login to Vault via the JWT auth method and read secret
+
+```sh
+# Set Vault address correctly
+export VAULT_ADDR=http://vault.vault.svc:8200
+
+# Login with k8s
+vault write auth/kubernetes/login role=k8s-auth-role jwt="$TOKEN"
+
+# Save Vault token
+VAULT_TOKEN=$(vault write -field=token auth/kubernetes/login role=k8s-auth-role jwt="$TOKEN")
+
+# Use the token to read the secret
+VAULT_TOKEN=$VAULT_TOKEN vault kv get secret/k8s
 ```
 
 ---
 
 ### 3. Projected Token Pod
 
-# 1) Open a shell in the pod
+#### 1. Read the projected ServiceAccount token
 
-kubectl exec -n demo -it projected-token-test-pod -- sh
-
-# 2) Read the projected token
-
-export VAULT_ADDR=http://vault.vault.svc:8200
+```sh
 TOKEN=$(cat /var/run/secrets/projected/token)
+```
 
-# 3) Decode & pretty-print the JWT payload
+#### 2. Print the Token for tokens.md file
 
+```sh
+echo "$TOKEN"
+```
+
+#### 3. Decode & pretty-print the JWT payload
+
+```sh
 echo "---- Decoded Payload ----"
 echo "$TOKEN" | jq -R '
-split(".")[1]
-| gsub("-"; "+")
-| gsub("\_"; "/")
-| @base64d
-| fromjson
+  split(".")[1]
+  | gsub("-"; "+")
+  | gsub("_"; "/")
+  | @base64d
+  | fromjson
+  | .issued_at  = (.iat | tonumber | todate)
+  | .expires_at = (.exp | tonumber | todate)
+  | del(.iat, .exp)
 '
-
-# 4) Login to Vault via the Kubernetes auth method (projected token)
-
-```
-vault login -method=kubernetes \
-  role=projected-auth-role \
-  jwt="$TOKEN"
 ```
 
----
+#### 4. Login to Vault via the JWT auth method and read secret
 
-After a successful login, you can inspect your new Vault token with:
+```sh
+# Set Vault address correctly
+export VAULT_ADDR=http://vault.vault.svc:8200
 
-```bash
-vault token lookup
+# Login with Kubernetes auth
+vault write auth/jwt/login role=projected-auth-role jwt="$TOKEN"
+
+# Save Vault token
+VAULT_TOKEN=$(vault write -field=token auth/jwt/login role=projected-auth-role jwt="$TOKEN")
+
+# Use the token to read the secret
+VAULT_TOKEN=$VAULT_TOKEN vault kv get secret/projected
 ```

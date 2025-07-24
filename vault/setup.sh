@@ -59,11 +59,12 @@ vault write auth/kubernetes/role/k8s-auth-role \
   policies="k8s-policy" \
   ttl="30m"
 
-vault write auth/kubernetes/role/projected-auth-role \
-  bound_service_account_names="projected-auth-sa" \
-  bound_service_account_namespaces="demo" \
-  audience="vault" \
+vault write auth/jwt/role/projected-auth-role \
   policies="projected-policy" \
+  role_type="jwt" \
+  user_claim="sub" \
+  bound_audiences="vault" \
+  bound_subject="system:serviceaccount:demo:projected-auth-sa" \
   ttl="10m"
 
 vault write auth/jwt/role/jwt-auth-role \
@@ -72,6 +73,12 @@ vault write auth/jwt/role/jwt-auth-role \
   bound_audiences="https://kubernetes.default.svc.cluster.local" \
   bound_subject="system:serviceaccount:demo:jwt-auth-sa" \
   policies="jwt-policy" \
+
+# Write secrets to Vault
+echo "[+] Writing secrets to Vault..."
+vault kv put secret/jwt value="hello from jwt"
+vault kv put secret/k8s value="hello from k8s"
+vault kv put secret/projected value="hello from projected"
 
 
 echo "[✓] Vault configuration complete."
