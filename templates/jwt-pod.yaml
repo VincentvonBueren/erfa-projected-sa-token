@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: jwt-test-pod
+  namespace: demo
+spec:
+  serviceAccountName: jwt-auth-sa
+  containers:
+    - name: jwt-test
+      image: demo/vault-curl:latest
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "3600"]

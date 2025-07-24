@@ -1,0 +1,18 @@
+ui:
+  enabled: true
+server:
+  extraEnvironmentVars:
+    VAULT_DEV_ROOT_TOKEN_ID: root
+  dev:
+    enabled: true
+    devRootToken: root
+  dataStorage:
+    enabled: false
+  ingress:
+    enabled: false
+  standalone:
+    enabled: true
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m

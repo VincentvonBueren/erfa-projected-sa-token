@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: k8s-auth-test-pod
+  namespace: demo
+spec:
+  serviceAccountName: k8s-auth-sa
+  containers:
+    - name: k8s-auth-test
+      image: demo/vault-curl:latest
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "3600"]
