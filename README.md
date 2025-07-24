@@ -38,21 +38,9 @@ helm upgrade --install vault hashicorp/vault \
   -f vault/values.yaml
 ```
 
-### 3. Expose JWKS Endpoint (for jwt auth)
+### 3. Configure Vault (after Helm install) with Vault Setup README
 
-- You’ll deploy a pod (e.g. nginx or cert-exporter) to expose a JWKS endpoint
-
-### 4. Configure Vault (after Helm install)
-
-First
-
-```bash
-kubectl -n vault port-forward svc/vault 8200:8200 &
-```
-
-```bash
-vault/setup.sh
-```
+Head to `vault/setup.md`. Then execute the Vault CLI command in the shell of the Vault Pod `vault-0`
 
 This will:
 
@@ -60,27 +48,13 @@ This will:
 - Configure the JWT method with the JWKS endpoint
 - Create Vault policies and roles for each Pod
 
-### 5. Deploy Pods & ServiceAccounts
+### 4. Deploy Pods & ServiceAccounts via Helm
 
 ```bash
-kubectl apply -f templates/
+helm upgrade --install demo .
 ```
 
-### 6. Test Authentication
-
-```bash
-kubectl exec -n demo jwt-test-pod -- sh
-kubectl exec -n demo k8s-auth-test-pod -- sh
-kubectl exec -n demo projected-token-test-pod -- sh
-```
-
-## Vault Login & Token Inspection
-
-For each demo Pod, you can **decode the token payload** and then **log in to Vault**. Replace `<pod-name>`, `<token-path>`, and `<auth-method>` as shown below.
-
----
-
-### 1. JWT Auth Pod
+### 5. JWT Auth Pod
 
 #### 1. Read the ServiceAccount token
 
@@ -128,7 +102,7 @@ VAULT_TOKEN=$VAULT_TOKEN vault kv get secret/jwt
 
 ---
 
-### 2. Kubernetes Auth Pod
+### 6. Kubernetes Auth Pod
 
 #### 1. Read the ServiceAccount token
 
@@ -158,7 +132,7 @@ echo "$TOKEN" | jq -R '
 '
 ```
 
-#### 4. Login to Vault via the JWT auth method and read secret
+#### 4. Login to Vault via the Kubernetes auth method and read secret
 
 ```sh
 # Set Vault address correctly
@@ -176,11 +150,12 @@ VAULT_TOKEN=$VAULT_TOKEN vault kv get secret/k8s
 
 ---
 
-### 3. Projected Token Pod
+### 7. Projected SA Token Pod
 
 #### 1. Read the projected ServiceAccount token
 
 ```sh
+# Check out the different token path
 TOKEN=$(cat /var/run/secrets/projected/token)
 ```
 
@@ -220,4 +195,52 @@ VAULT_TOKEN=$(vault write -field=token auth/jwt/login role=projected-auth-role j
 
 # Use the token to read the secret
 VAULT_TOKEN=$VAULT_TOKEN vault kv get secret/projected
+```
+
+### 8. No Project SA Token Pod
+
+#### 1. Read the ServiceAccount token
+
+```sh
+TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+```
+
+#### 2. Print the Token for tokens.md file
+
+```sh
+echo "$TOKEN"
+```
+
+#### 3. Decode & pretty-print the JWT payload
+
+```sh
+echo "---- Decoded Payload ----"
+echo "$TOKEN" | jq -R '
+  split(".")[1]
+  | gsub("-"; "+")
+  | gsub("_"; "/")
+  | @base64d
+  | fromjson
+  | .issued_at  = (.iat | tonumber | todate)
+  | .expires_at = (.exp | tonumber | todate)
+  | del(.iat, .exp)
+'
+```
+
+#### 4. Login to Vault via the JWT auth method and read secret
+
+```sh
+# Set Vault address correctly
+export VAULT_ADDR=http://vault.vault.svc:8200
+
+# Login with Kubernetes auth
+vault write auth/jwt/login role=projected-auth-role jwt="$TOKEN"
+
+# Save Vault token
+VAULT_TOKEN=$(vault write -field=token auth/jwt/login role=projected-auth-role jwt="$TOKEN")
+
+# Use the token to read the secret
+VAULT_TOKEN=$VAULT_TOKEN vault kv get secret/projected
+
+# AUDIENCE IS NOT THE SAME!
 ```

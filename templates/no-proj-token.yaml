@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: no-proj-jwt-test-pod
+  namespace: demo
+spec:
+  serviceAccountName: projected-auth-sa
+  containers:
+    - name: no-proj-jwt-test
+      image: demo/vault-curl:latest
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "3600"]

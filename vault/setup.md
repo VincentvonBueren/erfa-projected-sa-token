@@ -1,17 +1,15 @@
-#!/bin/bash
+# Vault Init Configuration
 
-set -euo pipefail
+## Configure Vault (after Helm install)
+
+```sh
+# Enable Kubernetes auth method
+kubectl -n vault port-forward svc/vault 8200:8200 &
 
 export VAULT_ADDR=http://127.0.0.1:8200
 export VAULT_TOKEN=root
 : "${KUBERNETES_SERVICE_HOST:=$(kubectl get svc kubernetes -o jsonpath='{.spec.clusterIP}')}"
 : "${KUBERNETES_SERVICE_PORT:=443}"
-
-
-# Port-forward Vault for local access
-echo "[+] Port-forwarding Vault..."
-kubectl -n vault port-forward svc/vault 8200:8200 &
-sleep 5
 
 # Enable Kubernetes auth method
 echo "[+] Enabling Kubernetes auth method..."
@@ -29,9 +27,9 @@ vault auth enable jwt || true
 
 # Configure JWT auth method with JWKS endpoint
 vault write auth/jwt/config \
-  jwks_url="https://kubernetes.default.svc/openid/v1/jwks"  \
+  jwks_url="https://kubernetes.default.svc.cluster.local/openid/v1/jwks" \
   bound_issuer="https://kubernetes.default.svc.cluster.local" \
-  jwks_ca_pem="$(kubectl get configmap -n kube-system kube-root-ca.crt -o jsonpath='{.data.ca\.crt}')"
+  jwks_ca_pem="$(cat /var/run/secrets/kubernetes.io/serviceaccount/ca.crt)"
 
 # Create policies
 vault policy write jwt-policy - <<EOF
@@ -80,5 +78,5 @@ vault kv put secret/jwt value="hello from jwt"
 vault kv put secret/k8s value="hello from k8s"
 vault kv put secret/projected value="hello from projected"
 
-
 echo "[✓] Vault configuration complete."
+```
