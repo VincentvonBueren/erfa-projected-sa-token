@@ -2,10 +2,42 @@
 
 ## Configure Vault (after Helm install)
 
-```sh
-# Enable Kubernetes auth method
-kubectl -n vault port-forward svc/vault 8200:8200 &
+### Prepare Access from Host
 
+```sh
+kubectl -n vault port-forward svc/vault 8200:8200 &
+```
+
+### Expose jwks Endpoint in KIND
+
+```sh
+kubectl apply -f - <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: jwks-public-access
+rules:
+  - nonResourceURLs: ["/openid/v1/jwks"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: jwks-public-access-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jwks-public-access
+subjects:
+  - kind: User
+    name: system:anonymous
+    apiGroup: rbac.authorization.k8s.io
+EOF
+```
+
+The run, the commands below in the Vault pod:
+
+```sh
 export VAULT_ADDR=http://127.0.0.1:8200
 export VAULT_TOKEN=root
 : "${KUBERNETES_SERVICE_HOST:=$(kubectl get svc kubernetes -o jsonpath='{.spec.clusterIP}')}"
@@ -70,7 +102,7 @@ vault write auth/jwt/role/jwt-auth-role \
   user_claim="sub" \
   bound_audiences="https://kubernetes.default.svc.cluster.local" \
   bound_subject="system:serviceaccount:demo:jwt-auth-sa" \
-  policies="jwt-policy" \
+  policies="jwt-policy"
 
 # Write secrets to Vault
 echo "[+] Writing secrets to Vault..."
